@@ -1,9 +1,10 @@
+use std::cmp::{PartialEq, PartialOrd};
 
-// TODO: rename fn
-pub(crate) fn quick_select<T: std::cmp::PartialEq + std::cmp::PartialOrd + Copy>(
-    data: &Vec<T>,
+pub(crate) fn kth_smallest<T: PartialOrd>(
+    data: &mut [Vec<T>],
     k: usize,
-) -> Result<T, String> {
+    cut_axis: usize,
+) -> Result<usize, String> {
     if k == 0 {
         return Err("k should be greater than 0, but you give 0.".to_string());
     }
@@ -13,49 +14,56 @@ pub(crate) fn quick_select<T: std::cmp::PartialEq + std::cmp::PartialOrd + Copy>
         return Err(format!("the size of data [{size}] is less than k [{k}]"));
     }
 
-    let mut indices: Vec<usize> = (0..size).collect();
+    let mut res_idx = _quick_select(data, 0, size - 1, k, cut_axis);
 
-    Ok(_quick_select(data, &mut indices, 0, size - 1, k))
+    // make sure elements in @data with index < res_idx is less than @data[res_idx]
+    //       and elements in @data with index > res_idx is greater or equal than @data[res_idx]
+    while res_idx > 0 && data[res_idx - 1][cut_axis] == data[res_idx][cut_axis] {
+        res_idx -= 1;
+    }
+
+    Ok(res_idx)
 }
 
-fn _quick_select<T: std::cmp::PartialEq + std::cmp::PartialOrd + Copy>(
-    data: &Vec<T>,
-    indices: &mut Vec<usize>,
+fn _quick_select<T: PartialOrd>(
+    data: &mut [Vec<T>],
     l: usize,
     r: usize,
     k: usize,
-) -> T {
+    cut_axis: usize,
+) -> usize {
     if l >= r {
-        return data[indices[l]];
+        return l;
     }
 
-    let mut i = l as i32 - 1;
-    let mut j = r as i32 + 1;
+    let mut i = l as isize - 1;
+    let mut j = r as isize + 1;
     // let x = data[indices[(l + r) >> 1]];
-    let x = data[indices[l]];
+    // let x = data[l];
+    let pivot = l;
 
     while i < j {
         loop {
             i += 1;
-            if data[indices[i as usize]] >= x {
+            if data[i as usize][cut_axis] >= data[pivot][cut_axis] {
                 break;
             }
         }
         loop {
             j -= 1;
-            if data[indices[j as usize]] <= x {
+            if data[j as usize][cut_axis] <= data[pivot][cut_axis] {
                 break;
             }
         }
         if i < j {
-            indices.swap(i as usize, j as usize);
+            data.swap(i as usize, j as usize);
         }
     }
 
     if k <= j as usize - l + 1 {
-        return _quick_select(data, indices, l, j as usize, k);
+        return _quick_select(data, l, j as usize, k, cut_axis);
     }
-    _quick_select(data, indices, j as usize + 1, r, k - (j as usize - l + 1))
+    _quick_select(data, j as usize + 1, r, k - (j as usize - l + 1), cut_axis)
 }
 
 #[cfg(test)]
@@ -63,37 +71,80 @@ mod test {
     use super::*;
     use rand::Rng;
 
+    // check if element with index < @idx is less than @data[idx]
+    //      and element with index > @idx is greater or equal than @data[idx]
+    fn check<T: PartialOrd>(data: &[Vec<T>], idx: usize, cut_axis: usize) {
+        for i in 0..idx {
+            assert!(data[i][cut_axis] < data[idx][cut_axis]);
+        }
+        for i in idx..data.len() {
+            assert!(data[i][cut_axis] >= data[idx][cut_axis]);
+        }
+    }
+
     #[test]
     fn basic() {
-        let a = vec![10, 8, 4, 3, 1, 9, 2, 7, 5, 6];
-        assert_eq!(quick_select(&a, 3), Ok(3));
+        let mut a = [
+            vec![10],
+            vec![8],
+            vec![4],
+            vec![3],
+            vec![1],
+            vec![9],
+            vec![2],
+            vec![7],
+            vec![5],
+            vec![6],
+        ];
+
+        // baic
+        let cut_axis = 0;
+        let idx = kth_smallest(&mut a, 3, cut_axis).unwrap();
+        assert_eq!(a[idx][cut_axis], 3);
+        check(&a, idx, cut_axis);
     }
 
     #[test]
-    fn list_size_less_than_k() {
-        let a = Vec::<i32>::new();
-        assert_eq!(quick_select(&a, 3), Err("the size of data [0] is less than k [3]".to_string()));
+    fn duplicate_elemnts() {
+        let mut a = [vec![2], vec![2], vec![2]];
 
-        let a = vec![1,2,3,4,5];
-        // let res = quick_select(&a, 3).map_err(|e| e.kind());
-        assert_eq!(quick_select(&a, 10), Err("the size of data [5] is less than k [10]".to_string()));
+        let cut_axis = 0;
+        let idx = kth_smallest(&mut a, 3, cut_axis).unwrap();
+        assert_eq!(idx, 0);
+        check(&a, idx, cut_axis);
     }
 
     #[test]
-    fn zero_k() {
-        let a = Vec::<i32>::new();
-        assert_eq!(quick_select(&a, 0), Err("k should be greater than 0, but you give 0.".to_string()));
+    fn single_element() {
+        let mut a = [vec![2]];
 
-        let a = vec![1,2,3,4,5];
-        // let res = quick_select(&a, 3).map_err(|e| e.kind());
-        assert_eq!(quick_select(&a, 0), Err("k should be greater than 0, but you give 0.".to_string()));
+        let cut_axis = 0;
+        let idx = kth_smallest(&mut a, 1, cut_axis).unwrap();
+        assert_eq!(a[idx][cut_axis], 2);
+        check(&a, idx, cut_axis);
     }
 
     #[test]
-    fn pre_sorted() {
-        let a = vec![1,2,3,4,5];
-        // let res = quick_select(&a, 3).map_err(|e| e.kind());
-        assert_eq!(quick_select(&a, 2), Ok(2));
+    fn presorted() {
+        let mut a = [vec![1], vec![2], vec![3], vec![8]];
+
+        let cut_axis = 0;
+        let idx = kth_smallest(&mut a, 4, cut_axis).unwrap();
+        assert_eq!(a[idx][cut_axis], 8);
+        check(&a, idx, cut_axis);
+    }
+
+    #[test]
+    fn error() {
+        // list size is less than k
+        let mut a: [Vec<i32>; 0] = [];
+        assert!(kth_smallest(&mut a, 3, 1).is_err());
+
+        let mut a = [vec![1]];
+        assert!(kth_smallest(&mut a, 10, 1).is_err());
+
+        // k = 0
+        assert!(kth_smallest(&mut a, 10, 0).is_err());
     }
 
     #[test]
@@ -104,16 +155,17 @@ mod test {
         let test_iter: usize = 10;
 
         for _ in 0..test_iter {
-            let mut random_data: Vec<f32> = (0..size).map(|_| rng.gen::<f32>()).collect();
+            let mut random_data: Vec<Vec<f32>> = (0..size).map(|_| vec![rng.gen::<f32>()]).collect();
             let k = rng.gen_range(1..size + 1);
 
-            // quick select result
-            let qs_res = quick_select(&random_data, k).unwrap();
+            // kth_smallest result
+            let cut_axis = 0;
+            let res_idx = kth_smallest(&mut random_data, k, cut_axis).unwrap();
+            check(&random_data, res_idx, cut_axis);
 
             // sort results
             random_data.sort_by(|a, b| a.partial_cmp(b).unwrap());
-            assert_eq!(qs_res, random_data[k - 1]);
+            assert_eq!(random_data[res_idx], random_data[k - 1]);
         }
     }
 }
-
