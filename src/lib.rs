@@ -1,3 +1,3 @@
 
-pub mod utils;
-mod kdtree;
+pub(crate) mod utils;
+pub mod kdtree;
