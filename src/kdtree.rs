@@ -57,13 +57,32 @@ impl<T: PartialOrd + Clone> KDTree<T> {
 
     pub fn search_knn(&self, k: usize) -> Result<Vec<T>, Error> {
         unimplemented!();
+
     }
 
-    pub fn add(&mut self, points: T) -> Result<(), Error> {
-        unimplemented!();
+    pub fn add(&mut self, point: &Vec<T>) -> Result<(), Error> {
+        let dim = point.len();
+        let son = if point[self.cut_axis] < self.data[self.cut_axis] {
+            &mut self.left
+        } else {
+            &mut self.right
+        };
+
+        match son {
+            Some(node) => node.add(point),
+            None => {
+                self.right = Some(Box::new(KDTree{
+                    data: point.clone(),
+                    cut_axis: (self.cut_axis + 1) % dim,
+                    left: None,
+                    right: None,
+                }));
+                Ok(())
+            }
+        }
     }
 
-    pub fn remove(&mut self, points: T) -> Result<(), Error> {
+    pub fn remove(&mut self, point: &Vec<T>) -> Result<(), Error> {
         unimplemented!();
     }
 }
@@ -72,7 +91,7 @@ mod test {
     use super::*;
 
     #[test]
-    fn build() {
+    fn build_basic() {
         let points = [vec![1], vec![2], vec![2], vec![3]];
         let tree = KDTree::new(&points).unwrap();
 
@@ -101,7 +120,13 @@ mod test {
             right: Some(Box::new(right)),
         };
 
-        println!("{tree:?}");
+        assert_eq!(tree, ans);
+
+        // add
+        let points = [vec![1], vec![2], vec![2]];
+        let mut tree = KDTree::new(&points).unwrap();
+        tree.add(&vec![3]).unwrap();
+
         assert_eq!(tree, ans);
     }
 }
