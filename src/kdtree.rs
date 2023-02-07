@@ -1,16 +1,19 @@
 use crate::utils;
 use std::cmp::{PartialEq, PartialOrd};
+use std::collections::BinaryHeap;
 
 #[derive(Debug)]
 pub enum Error {
     EmptyInput,
+
+    InvalidK,
     // PointDoesNotExist,
 }
 
 // TODO: data generics
 
 #[derive(Default, PartialEq, Debug)]
-pub struct KDTree<T: PartialOrd + Clone> {
+pub struct KDTree<T: Ord + Clone> {
     data: Vec<T>,
     cut_axis: usize,
 
@@ -18,7 +21,7 @@ pub struct KDTree<T: PartialOrd + Clone> {
     right: Option<Box<KDTree<T>>>,
 }
 
-impl<T: PartialOrd + Clone> KDTree<T> {
+impl<T: Ord + Clone> KDTree<T> {
     // public function
     pub fn new(points: &[Vec<T>]) -> Result<Self, Error> {
         if points.is_empty() {
@@ -30,8 +33,15 @@ impl<T: PartialOrd + Clone> KDTree<T> {
         Ok(Self::build_tree(&mut points_, 0, 0, points.len() as isize - 1).unwrap())
     }
 
-    pub fn search_knn(&self, k: usize) -> Result<Vec<T>, Error> {
-        unimplemented!();
+    pub fn search_knn(&self, point: &Vec<T>, k: usize) -> Result<Vec<Vec<T>>, Error> {
+        if k < 1 {
+            return Err(Error::InvalidK);
+        }
+
+        let mut heap = BinaryHeap::new();
+        self._search_knn(point, k, &mut heap);
+
+        Ok(heap.into_iter().collect())
     }
 
     pub fn add(&mut self, point: &Vec<T>) {
@@ -98,6 +108,10 @@ impl<T: PartialOrd + Clone> KDTree<T> {
             left,
             right,
         })
+    }
+
+    fn _search_knn(&self, point: &Vec<T>, k: usize, heap: &mut BinaryHeap<Vec<T>>) {
+
     }
 
     // fn _remove(&mut self, point: &Vec<T>, father: Option<&mut Self>) -> Result<&Self, Error> {
