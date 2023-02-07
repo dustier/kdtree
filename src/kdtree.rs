@@ -4,6 +4,7 @@ use std::cmp::{PartialEq, PartialOrd};
 #[derive(Debug)]
 pub enum Error {
     EmptyInput,
+    // PointDoesNotExist,
 }
 
 // TODO: data generics
@@ -11,7 +12,6 @@ pub enum Error {
 #[derive(Default, PartialEq, Debug)]
 pub struct KDTree<T: PartialOrd + Clone> {
     data: Vec<T>,
-    // data_dim: usize,
     cut_axis: usize,
 
     left: Option<Box<KDTree<T>>>,
@@ -19,21 +19,64 @@ pub struct KDTree<T: PartialOrd + Clone> {
 }
 
 impl<T: PartialOrd + Clone> KDTree<T> {
-    pub fn new(points: &[Vec<T>]) -> Result<Self,Error> {
-
+    // public function
+    pub fn new(points: &[Vec<T>]) -> Result<Self, Error> {
         if points.is_empty() {
             return Err(Error::EmptyInput);
         }
 
         // TODO: use variance to decide initial cut_axis
         let mut points_ = points.to_vec();
-        match Self::build_tree(&mut points_, 0, 0, points.len() as isize - 1) {
-            Some(node) => Ok(node),
-            None => Err(Error::EmptyInput),
+        Ok(Self::build_tree(&mut points_, 0, 0, points.len() as isize - 1).unwrap())
+    }
+
+    pub fn search_knn(&self, k: usize) -> Result<Vec<T>, Error> {
+        unimplemented!();
+    }
+
+    pub fn add(&mut self, point: &Vec<T>) {
+        // TODO: invalid input point
+
+        if point[self.cut_axis] < self.data[self.cut_axis] {
+            match self.left {
+                Some(ref mut node) => node.add(point),
+                None => {
+                    self.left = Some(Box::new(Self {
+                        data: point.clone(),
+                        cut_axis: (self.cut_axis + 1) % point.len(),
+                        left: None,
+                        right: None,
+                    }))
+                }
+            }
+        } else {
+            match self.right {
+                Some(ref mut node) => node.add(point),
+                None => {
+                    self.right = Some(Box::new(Self {
+                        data: point.clone(),
+                        cut_axis: (self.cut_axis + 1) % point.len(),
+                        left: None,
+                        right: None,
+                    }))
+                }
+            }
         }
     }
 
-    fn build_tree(points: &mut [Vec<T>], current_cut_axis: usize, l: isize, r: isize) -> Option<Self> {
+    // TODO: remove
+    // pub fn remove(&mut self, point: &Vec<T>) -> Result<Option<Self>, Error> {
+    //     self._remove(point, None)?;
+    //     Ok(())
+    // }
+
+    // ===== private function =====
+    fn build_tree(
+        points: &mut [Vec<T>],
+        current_cut_axis: usize,
+        l: isize,
+        r: isize,
+    ) -> Option<Self> {
         if l > r {
             return None;
         }
@@ -43,48 +86,46 @@ impl<T: PartialOrd + Clone> KDTree<T> {
         let pivot = utils::kth_smallest(points, k, current_cut_axis).unwrap() as isize;
         let pivot = std::cmp::max(pivot, l);
 
-        let left = Self::build_tree(points, (current_cut_axis + 1) % dim, l, pivot - 1).map(Box::new);
-        let right = Self::build_tree(points, (current_cut_axis + 1) % dim, pivot + 1, r).map(Box::new);
+        let left =
+            Self::build_tree(points, (current_cut_axis + 1) % dim, l, pivot - 1).map(Box::new);
+        let right =
+            Self::build_tree(points, (current_cut_axis + 1) % dim, pivot + 1, r).map(Box::new);
 
         Some(Self {
             data: points[pivot as usize].clone(),
-
             cut_axis: current_cut_axis,
+
             left,
             right,
         })
     }
 
-    pub fn search_knn(&self, k: usize) -> Result<Vec<T>, Error> {
-        unimplemented!();
+    // fn _remove(&mut self, point: &Vec<T>, father: Option<&mut Self>) -> Result<&Self, Error> {
 
-    }
+    // }
 
-    pub fn add(&mut self, point: &Vec<T>) -> Result<(), Error> {
-        let dim = point.len();
-        let son = if point[self.cut_axis] < self.data[self.cut_axis] {
-            &mut self.left
-        } else {
-            &mut self.right
-        };
+    // fn find_min(&self, dim: usize) -> Vec<T> {
 
-        match son {
-            Some(node) => node.add(point),
-            None => {
-                self.right = Some(Box::new(KDTree{
-                    data: point.clone(),
-                    cut_axis: (self.cut_axis + 1) % dim,
-                    left: None,
-                    right: None,
-                }));
-                Ok(())
-            }
-        }
-    }
-
-    pub fn remove(&mut self, point: &Vec<T>) -> Result<(), Error> {
-        unimplemented!();
-    }
+    //     if dim == self.cut_axis {
+    //         match self.left {
+    //             Some(ref node) => node.find_min(dim),
+    //             None => self.data.clone(),
+    //         }
+    //     } else {
+    //         let mut res = self.data.clone();
+    //         if let Some(ref node) = self.left {
+    //             if node.data[dim] < res[dim] {
+    //                 res = node.data.clone();
+    //             }
+    //         }
+    //         if let Some(ref node) = self.right {
+    //             if node.data[dim] < res[dim] {
+    //                 res = node.data.clone();
+    //             }
+    //         }
+    //         res
+    //     }
+    // }
 }
 
 mod test {
@@ -105,7 +146,7 @@ mod test {
             data: vec![2],
             cut_axis: 0,
             left: None,
-            right: Some(Box::new(KDTree{
+            right: Some(Box::new(KDTree {
                 data: vec![3],
                 cut_axis: 0,
                 left: None,
@@ -125,7 +166,7 @@ mod test {
         // add
         let points = [vec![1], vec![2], vec![2]];
         let mut tree = KDTree::new(&points).unwrap();
-        tree.add(&vec![3]).unwrap();
+        tree.add(&vec![3]);
 
         assert_eq!(tree, ans);
     }

@@ -1,4 +1,4 @@
-use std::cmp::{PartialEq, PartialOrd};
+use std::cmp::PartialOrd;
 
 pub(crate) fn kth_smallest<T: PartialOrd>(
     data: &mut [Vec<T>],
@@ -155,7 +155,8 @@ mod test {
         let test_iter: usize = 10;
 
         for _ in 0..test_iter {
-            let mut random_data: Vec<Vec<f32>> = (0..size).map(|_| vec![rng.gen::<f32>()]).collect();
+            let mut random_data: Vec<Vec<f32>> =
+                (0..size).map(|_| vec![rng.gen::<f32>()]).collect();
             let k = rng.gen_range(1..size + 1);
 
             // kth_smallest result
