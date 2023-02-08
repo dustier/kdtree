@@ -58,7 +58,7 @@ fn brute_force_search(points: &[Vec<f32>], query_point: &[f32], k: usize) -> Vec
         .collect()
 }
 
-fn kdtree_works() -> bool {
+fn basic() -> bool {
     let points = random_points(1000);
     let query_point = &random_points(1)[0];
     let k = 10;
@@ -68,9 +68,28 @@ fn kdtree_works() -> bool {
     tree.search_knn(query_point, k).unwrap() == ans
 }
 
+fn with_addition() -> bool {
+    let mut points = random_points(500);
+    let query_point = &random_points(1)[0];
+    let addition_points = random_points(200);
+    let k = 10;
+
+    // kdtree addition
+    let mut tree = KDTree::new(&points).unwrap();
+    for p in addition_points.iter() {
+        tree.add(p);
+    }
+
+    points.extend_from_slice(&addition_points);
+    let ans = brute_force_search(&points, query_point, k);
+
+    tree.search_knn(query_point, k).unwrap() == ans
+}
+
 #[test]
 fn iter_kdtree_works() {
     for _ in 0..50 {
-        assert!(kdtree_works());
+        assert!(basic());
+        assert!(with_addition());
     }
 }
