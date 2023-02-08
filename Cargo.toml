@@ -1,5 +1,5 @@
 [package]
-name = "KDTree"
+name = "kdtree"
 version = "0.1.0"
 authors = ["duster <dustier@foxmail.com>"]
 description = "a simple implementation of KDTree, featuring tree building, point addition, knn querying"
