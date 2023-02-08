@@ -1,4 +1,33 @@
-use std::cmp::PartialOrd;
+use std::cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd};
+
+#[derive(PartialEq)]
+pub(crate) struct Element<T> {
+    pub distance: f64,
+    pub point: Vec<T>,
+}
+
+impl<T: PartialEq> Eq for Element<T> {}
+
+impl<T: PartialEq> Ord for Element<T> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.distance.partial_cmp(&other.distance).unwrap()
+    }
+}
+
+impl<T: PartialEq> PartialOrd for Element<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+pub fn calculate_distance<T: Copy + Into<f64>>(p1: &[T], p2: &[T]) -> f64 {
+    let mut dist = 0.0_f64;
+    for (i, p) in p1.iter().enumerate() {
+        let r: f64 = (*p).into() - p2[i].into();
+        dist += r * r;
+    }
+    dist
+}
 
 pub(crate) fn kth_smallest<T: PartialOrd>(
     data: &mut [Vec<T>],

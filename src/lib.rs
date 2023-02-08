@@ -1,3 +1,4 @@
-
-pub(crate) mod utils;
 pub mod kdtree;
+mod utils;
+
+pub use crate::kdtree::KDTree;

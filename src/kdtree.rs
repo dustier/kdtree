@@ -1,4 +1,4 @@
-use crate::utils;
+use crate::utils::{calculate_distance, kth_smallest, Element};
 use std::cmp::{PartialEq, PartialOrd};
 use std::collections::BinaryHeap;
 
@@ -13,7 +13,7 @@ pub enum Error {
 // TODO: data generics
 
 #[derive(Default, PartialEq, Debug)]
-pub struct KDTree<T: Ord + Clone> {
+pub struct KDTree<T: PartialOrd + Copy + Clone + Into<f64>> {
     data: Vec<T>,
     cut_axis: usize,
 
@@ -21,7 +21,10 @@ pub struct KDTree<T: Ord + Clone> {
     right: Option<Box<KDTree<T>>>,
 }
 
-impl<T: Ord + Clone> KDTree<T> {
+impl<T> KDTree<T>
+where
+    T: PartialOrd + Copy + Clone + Into<f64> + std::fmt::Debug,
+{
     // public function
     pub fn new(points: &[Vec<T>]) -> Result<Self, Error> {
         if points.is_empty() {
@@ -30,10 +33,10 @@ impl<T: Ord + Clone> KDTree<T> {
 
         // TODO: use variance to decide initial cut_axis
         let mut points_ = points.to_vec();
-        Ok(Self::build_tree(&mut points_, 0, 0, points.len() as isize - 1).unwrap())
+        Ok(Self::build_tree(&mut points_, 0).unwrap())
     }
 
-    pub fn search_knn(&self, point: &Vec<T>, k: usize) -> Result<Vec<Vec<T>>, Error> {
+    pub fn search_knn(&self, point: &[T], k: usize) -> Result<Vec<Vec<T>>, Error> {
         if k < 1 {
             return Err(Error::InvalidK);
         }
@@ -41,7 +44,15 @@ impl<T: Ord + Clone> KDTree<T> {
         let mut heap = BinaryHeap::new();
         self._search_knn(point, k, &mut heap);
 
-        Ok(heap.into_iter().collect())
+        // Ok(heap.into_iter().collect())
+        // Ok(heap.into_iter().map(|e| e.point).collect())
+        assert!(heap.len() == k);
+        let mut res: Vec<Vec<T>> = Vec::new();
+        while !heap.is_empty() {
+            res.push(heap.pop().unwrap().point);
+        }
+        res.reverse();
+        Ok(res)
     }
 
     pub fn add(&mut self, point: &Vec<T>) {
@@ -84,25 +95,35 @@ impl<T: Ord + Clone> KDTree<T> {
     fn build_tree(
         points: &mut [Vec<T>],
         current_cut_axis: usize,
-        l: isize,
-        r: isize,
+        // l: isize,
+        // r: isize,
     ) -> Option<Self> {
-        if l > r {
+        if points.is_empty() {
             return None;
         }
+        if points.len() == 1 {
+            return Some(Self {
+                data: points[0].clone(),
+                cut_axis: current_cut_axis,
 
-        let dim = points[l as usize].len();
-        let k = ((l + r) / 2 + 1) as usize;
-        let pivot = utils::kth_smallest(points, k, current_cut_axis).unwrap() as isize;
-        let pivot = std::cmp::max(pivot, l);
+                left: None,
+                right: None,
+            });
+        }
+
+        let dim = points[0].len();
+        let k = points.len() / 2 + 1;
+        let pivot = kth_smallest(points, k, current_cut_axis).unwrap();
+
+        let root_data = points[pivot].clone();
 
         let left =
-            Self::build_tree(points, (current_cut_axis + 1) % dim, l, pivot - 1).map(Box::new);
+            Self::build_tree(&mut points[..pivot], (current_cut_axis + 1) % dim).map(Box::new);
         let right =
-            Self::build_tree(points, (current_cut_axis + 1) % dim, pivot + 1, r).map(Box::new);
+            Self::build_tree(&mut points[pivot + 1..], (current_cut_axis + 1) % dim).map(Box::new);
 
         Some(Self {
-            data: points[pivot as usize].clone(),
+            data: root_data,
             cut_axis: current_cut_axis,
 
             left,
@@ -110,43 +131,50 @@ impl<T: Ord + Clone> KDTree<T> {
         })
     }
 
-    fn _search_knn(&self, point: &Vec<T>, k: usize, heap: &mut BinaryHeap<Vec<T>>) {
+    fn _search_knn(&self, point: &[T], k: usize, heap: &mut BinaryHeap<Element<T>>) {
+        let distance = calculate_distance(&self.data, point);
+        let element = Element {
+            distance,
+            point: self.data.clone(),
+        };
 
+        if heap.len() < k {
+            heap.push(element);
+        } else if &element < heap.peek().unwrap() {
+            heap.pop();
+            heap.push(element);
+        }
+
+        let go_left = point[self.cut_axis] < self.data[self.cut_axis];
+
+        if go_left {
+            if let Some(node) = &self.left {
+                node._search_knn(point, k, heap);
+            }
+        } else if let Some(node) = &self.right {
+            node._search_knn(point, k, heap);
+        }
+
+        let dist_to_cut_plane: f64 = point[self.cut_axis].into() - self.data[self.cut_axis].into();
+        let dist_to_cut_plane_square = dist_to_cut_plane * dist_to_cut_plane;
+
+        if heap.len() < k || dist_to_cut_plane_square < heap.peek().unwrap().distance {
+            if go_left {
+                if let Some(node) = &self.right {
+                    node._search_knn(point, k, heap);
+                }
+            } else if let Some(node) = &self.left {
+                node._search_knn(point, k, heap);
+            }
+        }
     }
-
-    // fn _remove(&mut self, point: &Vec<T>, father: Option<&mut Self>) -> Result<&Self, Error> {
-
-    // }
-
-    // fn find_min(&self, dim: usize) -> Vec<T> {
-
-    //     if dim == self.cut_axis {
-    //         match self.left {
-    //             Some(ref node) => node.find_min(dim),
-    //             None => self.data.clone(),
-    //         }
-    //     } else {
-    //         let mut res = self.data.clone();
-    //         if let Some(ref node) = self.left {
-    //             if node.data[dim] < res[dim] {
-    //                 res = node.data.clone();
-    //             }
-    //         }
-    //         if let Some(ref node) = self.right {
-    //             if node.data[dim] < res[dim] {
-    //                 res = node.data.clone();
-    //             }
-    //         }
-    //         res
-    //     }
-    // }
 }
 
 mod test {
     use super::*;
 
     #[test]
-    fn build_basic() {
+    fn basic() {
         let points = [vec![1], vec![2], vec![2], vec![3]];
         let tree = KDTree::new(&points).unwrap();
 
@@ -157,15 +185,15 @@ mod test {
             right: None,
         };
         let right = KDTree {
-            data: vec![2],
+            data: vec![3],
             cut_axis: 0,
-            left: None,
-            right: Some(Box::new(KDTree {
-                data: vec![3],
+            left: Some(Box::new(KDTree {
+                data: vec![2],
                 cut_axis: 0,
                 left: None,
                 right: None,
             })),
+            right: None,
         };
 
         let ans = KDTree {
@@ -178,10 +206,38 @@ mod test {
         assert_eq!(tree, ans);
 
         // add
-        let points = [vec![1], vec![2], vec![2]];
+        let points = [vec![2], vec![2], vec![3]];
         let mut tree = KDTree::new(&points).unwrap();
-        tree.add(&vec![3]);
+        tree.add(&vec![1]);
 
         assert_eq!(tree, ans);
+
+        // search
+        let query_point = vec![4];
+        let res = tree.search_knn(&query_point, 2).unwrap();
+        let ans = vec![vec![3], vec![2]];
+        assert_eq!(res, ans);
+    }
+
+    #[test]
+    fn search() {
+        let points = [
+            vec![0.35010368, 0.6240131, 0.5635964],
+            vec![0.27942437, 0.8336378, 0.8208322],
+            vec![0.19197953, 0.049370766, 0.46151704],
+            vec![0.1565113, 0.5717637, 0.31621546],
+            vec![0.64521194, 0.52954865, 0.77038324],
+        ];
+        let query_point = vec![0.23113745, 0.29625928, 0.031125069];
+        let k = 2;
+
+        let ans = vec![
+            vec![0.1565113, 0.5717637, 0.31621546],
+            vec![0.19197953, 0.049370766, 0.46151704],
+        ];
+
+        let tree = KDTree::new(&points).unwrap();
+        let res = tree.search_knn(&query_point, k).unwrap();
+        assert_eq!(res, ans);
     }
 }
